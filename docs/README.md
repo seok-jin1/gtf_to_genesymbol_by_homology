@@ -26,58 +26,9 @@ Macrobrachium nipponense 유전자를 Human gene symbols로 매핑하는 완전 
   - Reference database가 매우 제한적이기 때문
   - 필터링 기준값: `--min-identity 20 --min-coverage 1` (매우 관대함)
 
-#### 더 나은 결과를 위한 권장사항
-더 정확하고 포괄적인 결과를 원하시면 아래 옵션 중 하나를 선택하세요:
+#### 결과 개선 방법
 
-**Option A: 필터링 강화 (빠름)**
-```bash
-cd scripts
-# 더 엄격한 기준으로 재분석
-python 5_map_blast_to_symbol.py \
-  -o ../results/final_gene_symbol_map_STRINGENT.tsv \
-  --min-identity 40 --min-coverage 50
-```
-
-**Option B: 완전한 Human Proteome 사용 (권장)**
-```bash
-# Step 1: 완전한 Human reference proteome 다운로드
-cd intermediate
-wget -q -O human_complete.fasta.gz \
-  "ftp://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/annotation/GRCh38_latest/refseq_identifiers/protein.fasta.gz"
-gunzip human_complete.fasta.gz
-
-# Step 2: BLAST Database 생성 (Docker)
-docker run --rm -v /home/laugh/shrimp_code/code/genesymbol:/data ncbi/blast:latest \
-  makeblastdb -in /data/intermediate/human_complete.fasta -dbtype prot -out /data/blast_db/human_complete
-
-# Step 3: BLASTP 재실행
-docker run --rm -v /home/laugh/shrimp_code/code/genesymbol:/data ncbi/blast:latest \
-  blastp -db /data/blast_db/human_complete \
-         -query /data/intermediate/shrimp_query.fasta \
-         -evalue 1e-5 -max_target_seqs 1 -outfmt 6 \
-         -out /data/intermediate/blast_results_complete.txt
-
-# Step 4: Gene symbol 매핑 (완전한 데이터 사용)
-cd ../scripts
-python 5_map_blast_to_symbol.py \
-  -b ../intermediate/blast_results_complete.txt \
-  -o ../results/final_gene_symbol_map_COMPLETE.tsv \
-  --min-identity 30 --min-coverage 30
-```
-
-**Option C: Mouse + Drosophila 추가 (멀티종)**
-```bash
-# Human, Mouse, Drosophila 완전 proteome 병합
-cd intermediate
-for species in H_sapiens M_musculus D_melanogaster; do
-  wget -q -O ${species}.fasta.gz \
-    "ftp://ftp.ncbi.nlm.nih.gov/refseq/${species}/annotation/*latest/refseq_identifiers/protein.fasta.gz"
-done
-gunzip *.fasta.gz
-cat H_sapiens.fasta M_musculus.fasta D_melanogaster.fasta > multi_ref.fasta
-
-# BLAST DB 생성 후 동일 단계 진행...
-```
+현재 결과를 개선하려면 더 완전한 Human reference proteome을 사용해야 합니다. 파이프라인은 다양한 규모의 reference database를 지원합니다.
 
 ---
 
@@ -406,15 +357,6 @@ A2MP1 (5,798개 LOC)
 - ❌ 낮은 특이성 (specificity)
 - ✅ 높은 민감성 (sensitivity) - 거의 모든 LOC가 매핑됨
 
-### Reference Database 선택 가이드
-
-| 상황 | 추천 선택 | 특징 |
-|------|---------|------|
-| 빠른 테스트 | 현재 설정 (5개) | 빠르지만 결과 제한적 |
-| 정확한 분석 | **Option B (완전 Human)** | 20,000+ 유전자, 가장 권장 |
-| 멀티종 비교 | **Option C (Human+Mouse+Fly)** | 포괄적이지만 느림 |
-| 매우 엄격한 필터 | Option A + 강한 threshold | 최소 개수의 신뢰할 수 있는 결과 |
-
 ### 필터링 기준값 가이드
 
 ```
@@ -426,11 +368,7 @@ Identity (%) | Coverage (%) | 용도
 >80          | >80          | 매우 엄격
 ```
 
-### 권장 실행 순서
-
-1. **첫 번째**: 현재 설정 테스트 (5분)
-2. **두 번째**: Option B로 완전 분석 (30분)
-3. **세 번째**: 필터링 강화 (Option A) 또는 결과 비교
+더 나은 결과를 위해서는 더 완전한 Human reference proteome(20,000+ 유전자)을 사용하고 필터링 기준값을 `--min-identity 30 --min-coverage 30` 이상으로 설정하는 것을 권장합니다.
 
 ---
 

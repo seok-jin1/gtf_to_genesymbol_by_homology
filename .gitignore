@@ -2,6 +2,9 @@
 data/annotation.gtf
 data/genome.fna
 
+# Large reference protein databases
+intermediate/human_complete.fasta
+
 # Large generated intermediate files (optional - remove to save space)
 # intermediate/proteins.fasta
 # intermediate/shrimp_query.fasta

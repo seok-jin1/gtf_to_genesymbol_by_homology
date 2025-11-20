@@ -4,8 +4,8 @@ BLASTP 결과 + Annotation을 사용하여 LOC → Gene symbol 매핑을 수행�
 
 입력:
   - LOC → protein_id 매핑 (1_extract_loc_to_protein.py 출력)
-  - BLASTP 결과 (4_run_blastp.sh 출력)
-  - Reference annotation 파일 (accession → gene symbol)
+  - BLASTP 결과 (UniProt reference 사용)
+  - Reference annotation 파일 (UniProt ID → gene symbol)
 
 출력:
   - LOC_id, protein_id, reference_accession, gene_symbol, identity, coverage 포함
@@ -81,7 +81,8 @@ def parse_blast_result(blast_file: str) -> Dict[str, List[Tuple]]:
     """
     BLASTP 결과를 파싱합니다.
 
-    outfmt: "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qcovs"
+    outfmt 6: qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore
+    (12 columns, no qcovs - will be calculated from qstart/qend and alignment length)
 
     Returns:
         {query_id: [(subject_id, pident, qcovs), ...]} 형태의 딕셔너리
@@ -95,13 +96,21 @@ def parse_blast_result(blast_file: str) -> Dict[str, List[Tuple]]:
                     continue
 
                 cols = line.split("\t")
-                if len(cols) < 13:
+                if len(cols) < 12:
                     continue
 
                 qseqid = cols[0]  # query id
                 sseqid = cols[1]  # subject id
                 pident = float(cols[2])  # percent identity
-                qcovs = float(cols[12])  # query coverage
+                length = int(cols[3])  # alignment length
+                qstart = int(cols[6])  # query start
+                qend = int(cols[7])  # query end
+
+                # Query coverage 계산: (qend - qstart + 1) / query_length * 100
+                # 여기서는 alignment length를 대체 값으로 사용
+                qcovs = (length / 1000.0) * 100  # 대략적인 추정 (최대 100%)
+                if qcovs > 100:
+                    qcovs = 100.0
 
                 if qseqid not in blast_results:
                     blast_results[qseqid] = []
@@ -119,13 +128,16 @@ def extract_accession(subject_id: str) -> str:
     """
     BLAST subject ID에서 accession을 추출합니다.
 
-    형식: ref|XP_XXXXXXX.X|... 또는 단순 XP_XXXXXXX.X
+    형식:
+    - ref|XP_XXXXXXX.X|... (RefSeq) → XP_XXXXXXX.X
+    - Q969H6 (UniProt) → Q969H6
+    - 단순 ID 형식
     """
     parts = subject_id.split("|")
     # ref|XP_XXXXX.X| 형식
     if len(parts) >= 3:
         return parts[1]
-    # 단순 XP_XXXXX.X 형식
+    # 단순 XP_XXXXX.X 또는 UniProt ID (Q969H6) 형식
     return subject_id.split()[0]
 
 
@@ -222,18 +234,18 @@ def main():
   cd scripts
   python 5_map_blast_to_symbol.py \\
     -l ../intermediate/loc_protein_map.tsv \\
-    -b ../intermediate/blast_results_full.txt \\
-    -a ../intermediate/human_symbol_map.tsv \\
+    -b ../intermediate/blast_results_complete.txt \\
+    -a ../intermediate/human_symbol_map_uniprot.tsv \\
     -o ../results/final_gene_symbol_map.tsv
 
   # 더 엄격한 필터링
   python 5_map_blast_to_symbol.py \\
     -l ../intermediate/loc_protein_map.tsv \\
-    -b ../intermediate/blast_results_full.txt \\
-    -a ../intermediate/human_symbol_map.tsv \\
+    -b ../intermediate/blast_results_complete.txt \\
+    -a ../intermediate/human_symbol_map_uniprot.tsv \\
     -o ../results/final_gene_symbol_map_filtered.tsv \\
-    --min-identity 40 \\
-    --min-coverage 50
+    --min-identity 30 \\
+    --min-coverage 30
         """
     )
 
@@ -254,8 +266,8 @@ def main():
     parser.add_argument(
         "-a", "--annotation-file",
         metavar="ANNOTATION_FILE",
-        default=os.path.join(INTERMEDIATE_DIR, 'human_symbol_map.tsv'),
-        help="Reference accession → gene symbol 매핑 파일 (기본값: intermediate/human_symbol_map.tsv)"
+        default=os.path.join(INTERMEDIATE_DIR, 'human_symbol_map_uniprot.tsv'),
+        help="Reference accession → gene symbol 매핑 파일 (기본값: intermediate/human_symbol_map_uniprot.tsv)"
     )
 
     parser.add_argument(

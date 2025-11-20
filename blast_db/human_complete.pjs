@@ -1,0 +1,24 @@
+{
+  "version": "1.2",
+  "dbname": "human_complete",
+  "dbtype": "Protein",
+  "db-version": 5,
+  "description": "/data/intermediate/human_complete.fasta",
+  "number-of-letters": 11456034,
+  "number-of-sequences": 20659,
+  "last-updated": "2025-11-20T11:41:00",
+  "number-of-volumes": 1,
+  "bytes-total": 16074706,
+  "bytes-to-cache": 11642094,
+  "files": [
+    "human_complete.pdb",
+    "human_complete.phr",
+    "human_complete.pin",
+    "human_complete.pog",
+    "human_complete.pos",
+    "human_complete.pot",
+    "human_complete.psq",
+    "human_complete.ptf",
+    "human_complete.pto"
+  ]
+}
