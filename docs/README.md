@@ -16,9 +16,68 @@ Macrobrachium nipponense 유전자를 Human gene symbols로 매핑하는 완전 
 6. **Symbol 매핑**: BLASTP 결과를 gene symbols로 변환
 
 ### 처리 결과
+
+#### 현재 결과 (제한된 Reference 사용)
 - **입력**: 46,035개 쌩프 단백질
 - **출력**: 44,264개 성공적으로 매핑됨 (96.2% 성공률)
 - **최종 결과**: `results/final_gene_symbol_map_FULL.tsv`
+- ⚠️ **주의**: 현재는 **5개의 Human gene symbols만** 반환
+  - A1BG (13,912개 LOC), AAK1 (10,651개), AAAS (7,327개), A2M (6,576개), A2MP1 (5,798개)
+  - Reference database가 매우 제한적이기 때문
+  - 필터링 기준값: `--min-identity 20 --min-coverage 1` (매우 관대함)
+
+#### 더 나은 결과를 위한 권장사항
+더 정확하고 포괄적인 결과를 원하시면 아래 옵션 중 하나를 선택하세요:
+
+**Option A: 필터링 강화 (빠름)**
+```bash
+cd scripts
+# 더 엄격한 기준으로 재분석
+python 5_map_blast_to_symbol.py \
+  -o ../results/final_gene_symbol_map_STRINGENT.tsv \
+  --min-identity 40 --min-coverage 50
+```
+
+**Option B: 완전한 Human Proteome 사용 (권장)**
+```bash
+# Step 1: 완전한 Human reference proteome 다운로드
+cd intermediate
+wget -q -O human_complete.fasta.gz \
+  "ftp://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/annotation/GRCh38_latest/refseq_identifiers/protein.fasta.gz"
+gunzip human_complete.fasta.gz
+
+# Step 2: BLAST Database 생성 (Docker)
+docker run --rm -v /home/laugh/shrimp_code/code/genesymbol:/data ncbi/blast:latest \
+  makeblastdb -in /data/intermediate/human_complete.fasta -dbtype prot -out /data/blast_db/human_complete
+
+# Step 3: BLASTP 재실행
+docker run --rm -v /home/laugh/shrimp_code/code/genesymbol:/data ncbi/blast:latest \
+  blastp -db /data/blast_db/human_complete \
+         -query /data/intermediate/shrimp_query.fasta \
+         -evalue 1e-5 -max_target_seqs 1 -outfmt 6 \
+         -out /data/intermediate/blast_results_complete.txt
+
+# Step 4: Gene symbol 매핑 (완전한 데이터 사용)
+cd ../scripts
+python 5_map_blast_to_symbol.py \
+  -b ../intermediate/blast_results_complete.txt \
+  -o ../results/final_gene_symbol_map_COMPLETE.tsv \
+  --min-identity 30 --min-coverage 30
+```
+
+**Option C: Mouse + Drosophila 추가 (멀티종)**
+```bash
+# Human, Mouse, Drosophila 완전 proteome 병합
+cd intermediate
+for species in H_sapiens M_musculus D_melanogaster; do
+  wget -q -O ${species}.fasta.gz \
+    "ftp://ftp.ncbi.nlm.nih.gov/refseq/${species}/annotation/*latest/refseq_identifiers/protein.fasta.gz"
+done
+gunzip *.fasta.gz
+cat H_sapiens.fasta M_musculus.fasta D_melanogaster.fasta > multi_ref.fasta
+
+# BLAST DB 생성 후 동일 단계 진행...
+```
 
 ---
 
@@ -328,6 +387,53 @@ sudo chown -R $USER:$USER /home/laugh/shrimp_code/code/genesymbol
 
 ---
 
+## 📋 결과 해석 및 Reference Database 가이드
+
+### 현재 결과의 특징
+
+현재 파이프라인은 **매우 제한된 Human reference** (5개 단백질)를 사용합니다:
+```
+A1BG (13,912개 LOC)
+AAK1 (10,651개 LOC)
+AAAS (7,327개 LOC)
+A2M (6,576개 LOC)
+A2MP1 (5,798개 LOC)
+```
+
+**이는 다음을 의미합니다:**
+- ✅ 매우 빠른 분석 (<1분)
+- ❌ 제한된 gene symbol 범위
+- ❌ 낮은 특이성 (specificity)
+- ✅ 높은 민감성 (sensitivity) - 거의 모든 LOC가 매핑됨
+
+### Reference Database 선택 가이드
+
+| 상황 | 추천 선택 | 특징 |
+|------|---------|------|
+| 빠른 테스트 | 현재 설정 (5개) | 빠르지만 결과 제한적 |
+| 정확한 분석 | **Option B (완전 Human)** | 20,000+ 유전자, 가장 권장 |
+| 멀티종 비교 | **Option C (Human+Mouse+Fly)** | 포괄적이지만 느림 |
+| 매우 엄격한 필터 | Option A + 강한 threshold | 최소 개수의 신뢰할 수 있는 결과 |
+
+### 필터링 기준값 가이드
+
+```
+Identity (%) | Coverage (%) | 용도
+------------------------------------------
+20-30        | 1-10         | 매우 관대 (현재 설정)
+30-50        | 20-40        | 중간 정도
+50-80        | 40-80        | 엄격 (권장)
+>80          | >80          | 매우 엄격
+```
+
+### 권장 실행 순서
+
+1. **첫 번째**: 현재 설정 테스트 (5분)
+2. **두 번째**: Option B로 완전 분석 (30분)
+3. **세 번째**: 필터링 강화 (Option A) 또는 결과 비교
+
+---
+
 ## 🔍 문제 해결
 
 ### "genome.fna를 찾을 수 없습니다"
@@ -338,11 +444,14 @@ sudo chown -R $USER:$USER /home/laugh/shrimp_code/code/genesymbol
 
 `extract_proteins_from_gtf.py` 실행 시 게놈 파일을 메모리에 로드합니다. 최소 8-10GB RAM이 필요합니다.
 
-### BLASTP 결과가 없습니다
+### "결과가 5개의 gene symbol만 포함되어 있습니다"
 
-- BLAST+가 설치되어 있는지 확인: `blastp -version`
-- 경로가 올바른지 확인: `ls -la ../blast_db/reference_proteome*`
-- BLAST DB가 생성되었는지 확인: `bash 3_prepare_blast_db.sh` 재실행
+현재 파이프라인이 제한된 reference를 사용하고 있습니다. 위의 "결과 해석" 섹션에서 **Option B (완전한 Human Proteome)**를 따르세요.
+
+### BLASTP 실행 시 오류
+
+- Docker가 설치되어 있는지 확인: `docker --version`
+- 경로가 올바른지 확인: `ls -la ../blast_db/human_*`
 - 수동으로 BLASTP 실행 시 `-evalue 100`은 매우 관대한 설정입니다.
 
 ---
