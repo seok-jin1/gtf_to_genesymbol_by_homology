@@ -1,6 +1,6 @@
 # BLASTP Gene Symbol 매핑 파이프라인
 
-쌩프(Macrobrachium nipponense) 유전자를 Human gene symbols로 매핑하는 완전 자동화 파이프라인
+Macrobrachium nipponense 유전자를 Human gene symbols로 매핑하는 완전 자동화 파이프라인
 
 ---
 
@@ -56,6 +56,25 @@
 - Python 3.x
 - Docker (BLASTP 실행용)
 - 충분한 RAM (게놈 파일 로드용 8-10GB)
+
+#### Docker 설치
+
+```bash
+# Ubuntu/Debian
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+
+# macOS
+brew install --cask docker
+
+# 설치 확인
+docker --version
+```
+
+**Docker 사용 이유:**
+- 환경 독립성: BLAST+ 버전 충돌 없음
+- 간편한 실행: 복잡한 의존성 관리 불필요
+- 재현성: 동일한 실행 환경 보장
 
 ### 전체 파이프라인 실행
 
@@ -212,6 +231,91 @@ RESULTS_DIR = os.path.join(PROJECT_ROOT, 'results')        # results/
 
 ---
 
+## 🐳 Docker를 이용한 BLASTP 실행
+
+이 파이프라인은 **Docker**를 사용하여 BLASTP를 실행합니다. 이를 통해 BLAST+ 설치 없이 환경 독립적으로 분석을 수행할 수 있습니다.
+
+### Docker 명령어 설명
+
+#### Step 4: BLAST Database 생성
+
+```bash
+docker run --rm \
+  -v /home/laugh/shrimp_code/code/genesymbol:/data \
+  ncbi/blast:latest \
+  makeblastdb \
+    -in /data/intermediate/human_ref_proteins.fasta \
+    -dbtype prot \
+    -out /data/blast_db/human_ref
+```
+
+**옵션 설명:**
+- `--rm`: 컨테이너 종료 후 자동 삭제
+- `-v /path/host:/path/container`: 호스트 디렉토리 마운트
+- `ncbi/blast:latest`: NCBI BLAST 공식 Docker 이미지
+- `-dbtype prot`: 단백질 database 생성
+- `-out`: database 출력 경로
+
+#### Step 5: BLASTP 실행
+
+```bash
+docker run --rm \
+  -v /home/laugh/shrimp_code/code/genesymbol:/data \
+  ncbi/blast:latest \
+  blastp \
+    -db /data/blast_db/human_ref \
+    -query /data/intermediate/shrimp_query.fasta \
+    -evalue 100 \
+    -max_target_seqs 3 \
+    -outfmt 6 \
+    -out /data/intermediate/blast_results_full.txt
+```
+
+**주요 옵션:**
+- `-db`: BLAST database 경로
+- `-query`: Query FASTA 파일
+- `-evalue`: E-value threshold (낮을수록 엄격)
+- `-max_target_seqs`: 반환할 최대 hit 수
+- `-outfmt 6`: 탭 구분 텍스트 형식 (컬럼: qseqid, sseqid, pident, length, ...)
+- `-out`: 결과 파일 경로
+
+### Docker 트러블슈팅
+
+**Q: Docker 명령어에서 권한 오류 발생**
+```bash
+# 해결 방법 1: sudo 사용
+sudo docker run --rm -v ... ncbi/blast:latest ...
+
+# 해결 방법 2: docker 그룹에 사용자 추가 (재부팅 필요)
+sudo usermod -aG docker $USER
+```
+
+**Q: Database 파일이 permission denied 에러 발생**
+```bash
+# Docker가 생성한 파일은 root 소유입니다
+# 필요하면 권한 변경:
+sudo chown -R $USER:$USER /home/laugh/shrimp_code/code/genesymbol
+```
+
+**Q: BLASTP 실행이 느림**
+```bash
+# CPU 코어 수 조절 가능 (ncbi/blast:latest 이미지는 자동 감지)
+# 필요하면 영구적으로 더 많은 컨테이너 리소스 할당:
+# Docker Desktop Settings > Resources > CPUs/Memory 조정
+```
+
+### Docker vs 로컬 BLAST+ 비교
+
+| 항목 | Docker | 로컬 BLAST+ |
+|-----|--------|-----------|
+| 설치 | 매우 간단 | 의존성 많음 |
+| 버전 관리 | 일관성 보장 | 관리 필요 |
+| 재현성 | 완벽함 | 환경 의존 |
+| 속도 | 미미한 오버헤드 | 약간 빠름 |
+| 크로스플랫폼 | 완벽 | 플랫폼별 차이 |
+
+---
+
 ## 📊 성능 지표
 
 | 단계 | 처리 시간 | 메모리 | 성공률 |
@@ -236,8 +340,9 @@ RESULTS_DIR = os.path.join(PROJECT_ROOT, 'results')        # results/
 
 ### BLASTP 결과가 없습니다
 
-- Docker가 설치되어 있는지 확인: `docker --version`
-- 경로가 올바른지 확인: `ls -la ../blast_db/human_ref*`
+- BLAST+가 설치되어 있는지 확인: `blastp -version`
+- 경로가 올바른지 확인: `ls -la ../blast_db/reference_proteome*`
+- BLAST DB가 생성되었는지 확인: `bash 3_prepare_blast_db.sh` 재실행
 - 수동으로 BLASTP 실행 시 `-evalue 100`은 매우 관대한 설정입니다.
 
 ---
@@ -253,7 +358,7 @@ RESULTS_DIR = os.path.join(PROJECT_ROOT, 'results')        # results/
 ## 🎯 주요 특징
 
 ✅ **완전 자동화** - 경로를 자동으로 설정합니다
-✅ **Docker 기반** - 환경 의존성 제거
+✅ **모듈식 스크립트** - 각 단계를 독립적으로 실행 가능
 ✅ **문서화** - 모든 스크립트에 help 메시지 포함
 ✅ **재현 가능** - 모든 중간 산물 보관
 ✅ **확장 가능** - 다른 reference genome으로 쉽게 확장 가능

@@ -8,11 +8,9 @@
 
 ```
 /home/laugh/shrimp_code/code/genesymbol/
-├── scripts/                  # Python/Bash 실행 스크립트
+├── scripts/                  # Python 실행 스크립트
 │   ├── 1_extract_loc_to_protein.py
 │   ├── 2_extract_proteins.py
-│   ├── 3_prepare_blast_db.sh
-│   ├── 4_run_blastp.sh
 │   ├── 5_map_blast_to_symbol.py
 │   └── extract_proteins_from_gtf.py
 │
@@ -92,28 +90,19 @@ python 2_extract_proteins.py ../intermediate/proteins.fasta ../intermediate/loc_
 - 입력: `../intermediate/proteins.fasta`, `../intermediate/loc_protein_map.tsv`
 - 출력: `../intermediate/shrimp_query.fasta`
 
-#### **Step 4: Reference BLAST DB 준비**
-
-```bash
-cd scripts
-bash 3_prepare_blast_db.sh -o ../blast_db
-```
-
-**또는 Docker로 수동 실행:**
+#### **Step 4: Reference BLAST DB 준비 (Docker)**
 
 ```bash
 docker run --rm -v /home/laugh/shrimp_code/code/genesymbol:/data ncbi/blast:latest \
   makeblastdb -in /data/intermediate/human_ref_proteins.fasta -dbtype prot -out /data/blast_db/human_ref
 ```
 
-#### **Step 5: BLASTP 실행**
+**명령어 설명:**
+- `ncbi/blast:latest`: NCBI 공식 Docker 이미지
+- `makeblastdb`: BLAST database 생성 도구
+- `-dbtype prot`: 단백질 database 타입
 
-```bash
-cd scripts
-bash 4_run_blastp.sh -q ../intermediate/shrimp_query.fasta -d ../blast_db/human_ref -o ../intermediate/blast_results_full.txt
-```
-
-**또는 Docker로 수동 실행:**
+#### **Step 5: BLASTP 실행 (Docker)**
 
 ```bash
 docker run --rm -v /home/laugh/shrimp_code/code/genesymbol:/data ncbi/blast:latest \
@@ -183,9 +172,9 @@ Total   : 44,264 hits | Avg Identity: 41.74% | Avg Coverage: 8.80%
 | `1_extract_loc_to_protein.py` | `data/annotation.gtf` | `LOC → Protein ID` | GTF 파싱 |
 | `extract_proteins_from_gtf.py` | `annotation.gtf`, `genome.fna` | FASTA | 게놈에서 단백질 추출 |
 | `2_extract_proteins.py` | FASTA, ID 리스트 | 필터링 FASTA | FASTA 필터링 |
-| `3_prepare_blast_db.sh` | Reference FASTA | BLAST DB | BLAST DB 생성 |
-| `4_run_blastp.sh` | Query FASTA, BLAST DB | BLASTP 결과 | BLASTP 검색 |
 | `5_map_blast_to_symbol.py` | BLASTP 결과, Symbol map | Gene mapping | Gene symbol 매핑 |
+
+**Note:** Steps 4-5 (BLAST DB 생성 및 BLASTP 검색)는 Docker를 사용하여 수행됩니다. 자세한 내용은 README.md의 "Docker를 이용한 BLASTP 실행" 섹션을 참고하세요.
 
 ### **intermediate/** - 중간 산물
 
@@ -237,14 +226,14 @@ intermediate/shrimp_query.fasta (46,035개, 100% 성공률)
     │
     ├─ intermediate/human_ref_proteins.fasta (5개)
     │   │
-    │   ├─ [scripts/3_prepare_blast_db.sh]
-    │   │   • Docker: makeblastdb 실행
+    │   ├─ [Docker: makeblastdb]
+    │   │   $ docker run --rm -v ... ncbi/blast:latest makeblastdb ...
     │   │
     │   ↓
     │   blast_db/human_ref (BLAST DB)
     │
-    ├─ [scripts/4_run_blastp.sh]
-    │   • Docker: blastp 실행
+    ├─ [Docker: blastp]
+    │   $ docker run --rm -v ... ncbi/blast:latest blastp ...
     │   • 284,401개 hits 생성
     │
     ↓
@@ -404,9 +393,11 @@ awk 'NR>1 {s[$4]++} END {for (k in s) print k, s[k]}' ../results/final_gene_symb
 | Step 1: GTF 파싱 | 325 MB | <1초 | <100 MB | 100% |
 | Step 2: Protein 번역 | 4.1 GB | ~10분 | ~8-10 GB | 100% (46,035/46,035) |
 | Step 3: Query 필터링 | 29 MB | <1초 | <50 MB | 100% |
-| Step 4: BLAST DB | 1 KB | <1초 | <10 MB | 100% |
-| Step 5: BLASTP | 46K hits | ~30분 | <500 MB | 97.4% (44,824/46,035) |
+| **Step 4: BLAST DB** *(Docker)* | 1 KB | <1초 | <10 MB | 100% |
+| **Step 5: BLASTP** *(Docker)* | 46K hits | ~30분 | <500 MB | 97.4% (44,824/46,035) |
 | Step 6: Gene mapping | 284K hits | <10초 | <100 MB | 96.2% (44,264/44,824) |
+
+**Note:** Steps 4-5는 Docker 컨테이너에서 실행되므로 호스트 메모리는 최소한으로 사용됩니다.
 
 ---
 
