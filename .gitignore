@@ -1,0 +1,8 @@
+# Large genomic data files (GitHub 100MB 제한 초과)
+data/annotation.gtf
+data/genome.fna
+
+# Large generated intermediate files (optional - remove to save space)
+# intermediate/proteins.fasta
+# intermediate/shrimp_query.fasta
+# intermediate/blast_results_full.txt

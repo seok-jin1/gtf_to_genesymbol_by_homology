@@ -1,0 +1,24 @@
+{
+  "version": "1.2",
+  "dbname": "human_ref",
+  "dbtype": "Protein",
+  "db-version": 5,
+  "description": "Human Reference (Full)",
+  "number-of-letters": 512,
+  "number-of-sequences": 5,
+  "last-updated": "2025-11-20T10:27:00",
+  "number-of-volumes": 1,
+  "bytes-total": 50435,
+  "bytes-to-cache": 670,
+  "files": [
+    "human_ref.pdb",
+    "human_ref.phr",
+    "human_ref.pin",
+    "human_ref.pog",
+    "human_ref.pos",
+    "human_ref.pot",
+    "human_ref.psq",
+    "human_ref.ptf",
+    "human_ref.pto"
+  ]
+}
