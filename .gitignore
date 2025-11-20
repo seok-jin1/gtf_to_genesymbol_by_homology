@@ -1,5 +1,5 @@
 # Large genomic data files (GitHub 100MB 제한 초과)
-data/annotation.gtf
+../annotation.gtf
 data/genome.fna
 
 # Large reference protein databases
